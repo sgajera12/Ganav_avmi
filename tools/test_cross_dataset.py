@@ -1,3 +1,8 @@
+"""
+Test the AVMI scratch model on RUGD and RELLIS raw images.
+No GT masks needed — just visual inspection of what the model predicts.
+Saves a 1x3 canvas per image: Original | Segmentation | Overlay
+"""
 import torch
 import cv2
 import numpy as np
@@ -11,7 +16,6 @@ import random
 torch.backends.cudnn.enabled = False
 
 device = 'cuda:0'
-print(f"Using device: {device}")
 
 config_file     = 'work_dirs/ganav_avmi_scratch/ganav_avmi_scratch.py'
 checkpoint_file = 'work_dirs/ganav_avmi_scratch/latest.pth'
@@ -24,7 +28,7 @@ for f in (config_file, checkpoint_file):
 print("Loading model …")
 model = init_segmentor(config_file, checkpoint_file, device=device)
 model = revert_sync_batchnorm(model)
-print("Model ready!")
+print("Model ready!\n")
 
 # ── AVMI class colours (RGB) ──────────────────────────────────────────────────
 CLASS_NAMES = ['sky', 'tree', 'bush', 'ground', 'trunk', 'rock']
@@ -37,26 +41,23 @@ COLORS = np.array([
     [255,   0,   0],  # 5: rock   - red
 ], dtype=np.uint8)
 
-# ── Pick 3 random images from the folder ─────────────────────────────────────
-img_folder = '/home/pinaka/dataset/AVMI/images_100'
-all_imgs   = sorted(glob.glob(os.path.join(img_folder, '*.jpg')) +
-                    glob.glob(os.path.join(img_folder, '*.png')))
-if len(all_imgs) < 3:
-    print(f"ERROR: need at least 3 images in {img_folder}")
-    exit(1)
+# ── Dataset image folders ─────────────────────────────────────────────────────
+DATASETS = {
+    'rugd':   'data/rugd/RUGD_frames-with-annotations/**/*.png',
+    'rellis': 'data/rellis/image/**/*.jpg',
+}
 
-selected = random.sample(all_imgs, 3)
-print(f"Selected images: {[os.path.basename(p) for p in selected]}")
+N_PER_DATASET = 3   # how many random images to test per dataset
 
-os.makedirs('results/avmi_new_test', exist_ok=True)
+os.makedirs('results/cross_dataset_test', exist_ok=True)
 
-def run_and_save(img_path, out_path):
-    """Run inference on one image, save 1×3 canvas: Original | Mask | Overlay."""
-    print(f"\nProcessing: {os.path.basename(img_path)}")
+
+def run_inference(img_path):
+    """Run model on one image, return coloured seg map aligned to original size."""
     result  = inference_segmentor(model, img_path)
     seg_map = result[0]   # (H, W)
 
-    # ── Fix vertical alignment ────────────────────────────────────────────────
+    # Fix vertical alignment (same as AVMI test script)
     orig_h, orig_w = seg_map.shape
     INFER_H, INFER_W = 300, 375
     scale       = min(INFER_H / orig_h, INFER_W / orig_w)
@@ -65,11 +66,13 @@ def run_and_save(img_path, out_path):
     if valid_out_h < orig_h:
         seg_map = cv2.resize(seg_map[:valid_out_h, :], (orig_w, orig_h),
                              interpolation=cv2.INTER_NEAREST)
+    return seg_map
 
-    # Colour mask
+
+def make_canvas(img_path, seg_map):
+    """Build 1x3 canvas: Original | Segmentation | Overlay."""
     colored_seg  = COLORS[seg_map]   # (H, W, 3) RGB
 
-    # Original image
     original     = cv2.imread(img_path)
     original_rgb = cv2.cvtColor(original, cv2.COLOR_BGR2RGB)
     H, W         = original_rgb.shape[:2]
@@ -77,22 +80,19 @@ def run_and_save(img_path, out_path):
     if colored_seg.shape[:2] != (H, W):
         colored_seg = cv2.resize(colored_seg, (W, H), interpolation=cv2.INTER_NEAREST)
 
-    # Overlay blend
     alpha   = 0.55
     blended = cv2.addWeighted(original_rgb, 1 - alpha,
                               colored_seg.astype(np.uint8), alpha, 0)
 
     # Class stats
-    stats = []
-    for cls in range(len(CLASS_NAMES)):
-        pct = np.sum(seg_map == cls) / seg_map.size * 100
-        stats.append((cls, float(pct)))
+    stats = [(cls, float(np.sum(seg_map == cls) / seg_map.size * 100))
+             for cls in range(len(CLASS_NAMES))]
 
-    # ── 1×3 canvas: Original | Segmentation Mask | Overlay ───────────────────
+    # 1x3 canvas
     canvas = np.zeros((H, W * 3, 3), dtype=np.uint8)
-    canvas[:, :W]      = original_rgb
-    canvas[:, W:W*2]   = colored_seg
-    canvas[:, W*2:]    = blended
+    canvas[:, :W]    = original_rgb
+    canvas[:, W:W*2] = colored_seg
+    canvas[:, W*2:]  = blended
 
     font = cv2.FONT_HERSHEY_SIMPLEX
 
@@ -100,35 +100,52 @@ def run_and_save(img_path, out_path):
     for x, text in [(10, 'Original'), (W + 10, 'Segmentation'), (W*2 + 10, 'Overlay')]:
         cv2.putText(canvas, text, (x, 30), font, 0.8, (255, 255, 255), 2)
 
-    # Legend on segmentation panel (middle)
+    # Legend on segmentation panel
     for idx, (name, color) in enumerate(zip(CLASS_NAMES, COLORS)):
         y = 60 + idx * 28
         cv2.rectangle(canvas, (W + 10, y - 15), (W + 28, y + 3), color.tolist(), -1)
         cv2.putText(canvas, name, (W + 34, y), font, 0.6, (255, 255, 255), 1)
 
-    # Class % stats on overlay panel (right)
+    # Class % stats on overlay panel
     sx, sy = W*2 + 8, 20
     for cls, pct in stats:
         if pct < 0.05:
             continue
         color = COLORS[cls].tolist()
-        label = f"{CLASS_NAMES[cls]}: {pct:.1f}%"
         cv2.rectangle(canvas, (sx, sy - 11), (sx + 14, sy + 3), color, -1)
-        cv2.putText(canvas, label, (sx + 18, sy), font, 0.42, (255, 255, 255), 1)
+        cv2.putText(canvas, f"{CLASS_NAMES[cls]}: {pct:.1f}%",
+                    (sx + 18, sy), font, 0.42, (255, 255, 255), 1)
         sy += 20
 
     # Dividing lines
     cv2.line(canvas, (W,   0), (W,   H), (200, 200, 200), 2)
     cv2.line(canvas, (W*2, 0), (W*2, H), (200, 200, 200), 2)
 
-    cv2.imwrite(out_path, cv2.cvtColor(canvas, cv2.COLOR_RGB2BGR))
-    print(f"  Saved → {out_path}")
-    for cls, pct in stats:
-        if pct >= 0.05:
-            print(f"    {CLASS_NAMES[cls]:8s}: {pct:.1f}%")
+    return canvas, stats
 
-for i, img_path in enumerate(selected):
-    out = f'results/avmi_new_test/result_{i+1}_{os.path.splitext(os.path.basename(img_path))[0]}.png'
-    run_and_save(img_path, out)
 
-print("\nDone! Results saved in results/avmi_new_test/")
+# ── Run across datasets ───────────────────────────────────────────────────────
+for dataset_name, img_glob in DATASETS.items():
+    all_imgs = sorted(glob.glob(img_glob, recursive=True))
+    if not all_imgs:
+        print(f"[{dataset_name}] No images found at: {img_glob}")
+        continue
+
+    selected = random.sample(all_imgs, min(N_PER_DATASET, len(all_imgs)))
+    print(f"[{dataset_name}] Testing {len(selected)} images …")
+
+    for i, img_path in enumerate(selected):
+        print(f"  {i+1}/{len(selected)}: {os.path.basename(img_path)}")
+        seg_map = run_inference(img_path)
+        canvas, stats = make_canvas(img_path, seg_map)
+
+        out_name = f"{dataset_name}_{i+1}_{os.path.splitext(os.path.basename(img_path))[0]}.png"
+        out_path = os.path.join('results/cross_dataset_test', out_name)
+        cv2.imwrite(out_path, cv2.cvtColor(canvas, cv2.COLOR_RGB2BGR))
+
+        for cls, pct in stats:
+            if pct >= 0.5:
+                print(f"    {CLASS_NAMES[cls]:8s}: {pct:.1f}%")
+    print()
+
+print("Done! Results in results/cross_dataset_test/")

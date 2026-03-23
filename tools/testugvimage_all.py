@@ -21,13 +21,13 @@ model = revert_sync_batchnorm(model)
 print("Model ready!")
 
 # ── AVMI class colours (RGB) ──────────────────────────────────────────────────
-CLASS_NAMES = ['sky', 'tree', 'bush', 'ground', 'trunk', 'rock']
+CLASS_NAMES = ['sky', 'tree', 'bush', 'ground', 'obstacle', 'rock']
 COLORS = np.array([
     [24,  102, 178],  # 0: sky    - blue
     [18,  182,  37],  # 1: tree   - green
     [239, 255,  15],  # 2: bush   - yellow
     [92,   19,   6],  # 3: ground - dark brown
-    [255,  63, 250],  # 4: trunk  - pink/magenta
+    [255,  63, 250],  # 4: obstacle  - pink/magenta
     [255,   0,   0],  # 5: rock   - red
 ], dtype=np.uint8)
 

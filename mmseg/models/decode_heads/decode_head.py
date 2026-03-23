@@ -307,7 +307,7 @@ class BaseDecodeHead(BaseModule, metaclass=ABCMeta):
 
         if self.update_eval and not self.loss_decode.static_weight:
             acc = eval_metrics(pred_label.detach().cpu(), seg_label.detach().cpu(), self.num_classes, -1)
-            class_acc = acc[1]
+            class_acc = acc['Acc']
             class_acc[class_acc != class_acc] = 0
             total = torch.bincount(seg_label.view(-1), minlength=self.num_classes)[:self.num_classes].to(self.total_count.device)
             self.correct_count += torch.Tensor([x[0] * x[1] for x in zip(total, class_acc)])

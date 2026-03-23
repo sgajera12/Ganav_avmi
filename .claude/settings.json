@@ -1,0 +1,22 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(grep -E \"Iter\\\\|loss\" work_dirs/ganav_avmi_rellis_joint/20260316_*.log)",
+      "Bash(pkill -f \"ganav_avmi_rellis_joint\")",
+      "Bash(python tools/compare_all_models.py)",
+      "Bash(conda env:*)",
+      "Bash(ls /home/pinaka/GANav-offroad/tools/test*.py /home/pinaka/GANav-offroad/results/)",
+      "Bash(find /home/pinaka/GANav-offroad/data/rellis/image -name *frame001163*)",
+      "Bash(/home/pinaka/miniconda3/envs/ganav/bin/python tools/test_joint_models.py --model rellis_joint --n 6)",
+      "Bash(ls /home/pinaka/GANav-offroad/data/avmi_ugv/images/test/*.png)",
+      "Read(//home/pinaka/GANav-offroad/**)",
+      "Bash(/home/pinaka/miniconda3/envs/ganav/bin/python tools/generate_ugv_grids.py)",
+      "Bash(find /home/pinaka/GANav-offroad/data -name *.pcd -o -name *.bin -o -name *.ply -o -name *.las)",
+      "Bash(find /home/pinaka/GANav-offroad -name *.pcd -o -name *.bin -o -name *.ply -o -name *.las -o -name *.npy)",
+      "Bash(find /home/pinaka/offroad_slam -name *.py -o -name *.cpp -o -name *.hpp)",
+      "Read(//tmp/**)",
+      "Bash(ls tools/generate_*.py tools/compare_*.py tools/test_*.py)",
+      "Bash(ls -lh results/ugv_comparison_grids/rugd_park*)"
+    ]
+  }
+}

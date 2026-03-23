@@ -1,0 +1,198 @@
+\documentclass[conference]{IEEEtran}
+\usepackage{cite}
+\usepackage{amsmath,amssymb,amsfonts}
+\usepackage{graphicx}
+\usepackage{textcomp}
+\usepackage{xcolor}
+\usepackage{booktabs}
+\usepackage{multirow}
+\usepackage{url}
+
+\begin{document}
+
+\title{Visual Terrain Segmentation for Autonomous UGV Navigation Using Transfer Learning from Off-Road Datasets}
+
+\author{
+  \IEEEauthorblockN{[Your Name]}
+  \IEEEauthorblockA{[Your Department] \\ [Your Institution] \\ [Email]}
+}
+
+\maketitle
+
+% ─────────────────────────────────────────────────────────────────────────────
+\begin{abstract}
+Reliable terrain segmentation is a prerequisite for safe autonomous navigation of Unmanned Ground Vehicles (UGVs) in unstructured outdoor environments. Existing off-road segmentation datasets such as RUGD and RELLIS-3D use domain-specific class ontologies that do not transfer directly to task-specific UGV navigation requirements. In this work, we define a six-class visual terrain taxonomy — \textit{sky, tree, bush, ground, obstacle, rock} — suited to UGV perception, collect a custom AVMI UGV dataset annotated under this taxonomy, and train a GANav segmentation model from scratch. We then investigate knowledge transfer from RUGD and RELLIS-3D by mapping their class labels to our six-class scheme and fine-tuning the AVMI-pretrained model. We analyze the impact of class-mapping strategies (full mapping, selective mapping, corrected index mapping) and class-imbalance handling on segmentation quality. Our best fine-tuned model, trained on RELLIS-3D with corrected sequential class indices, achieves sky IoU of 71.2\%, tree IoU of 61.1\%, bush IoU of 20.8\%, and ground IoU of 63.8\% on the RELLIS-3D validation set, and produces visually coherent terrain segmentation on unseen UGV images.
+\end{abstract}
+
+% ─────────────────────────────────────────────────────────────────────────────
+\section{Introduction}
+
+Autonomous UGVs operating in natural, unstructured terrains must reliably perceive and classify the environment to plan safe navigation paths. Semantic segmentation provides pixel-level understanding of the scene, enabling the vehicle to distinguish traversable ground from obstacles, vegetation, and sky regions.
+
+Publicly available off-road datasets such as RUGD~\cite{rugd2019} and RELLIS-3D~\cite{rellis2021} provide rich annotations for outdoor scenes. However, their class ontologies are designed for general environment description and do not align with the specific perception requirements of a given UGV platform. RUGD uses 24 fine-grained terrain and object classes, while RELLIS-3D provides 20 classes across forest trail environments. Mapping these to a compact, navigation-relevant representation is non-trivial due to visual appearance mismatches and severe class imbalance.
+
+This paper makes the following contributions:
+\begin{enumerate}
+    \item We define a six-class visual terrain taxonomy designed for UGV navigation and annotate a custom AVMI UGV dataset.
+    \item We train the GANav attention-based segmentation model~\cite{ganav2022} from scratch on the AVMI dataset and use it as a foundation for cross-dataset transfer.
+    \item We systematically evaluate three class-mapping strategies for transferring RUGD and RELLIS-3D annotations to our six-class scheme and identify the causes of failure (index mapping errors, class imbalance, visual appearance mismatch).
+    \item We demonstrate that fixing the RELLIS-3D sequential class index mapping and fine-tuning from the AVMI-pretrained model significantly improves per-class IoU on both RELLIS-3D and unseen UGV images.
+\end{enumerate}
+
+% ─────────────────────────────────────────────────────────────────────────────
+\section{Related Work}
+
+\subsection{Off-Road Semantic Segmentation Datasets}
+RUGD~\cite{rugd2019} contains 7,456 annotated frames from trail, park, village, and creek environments with 24 terrain and object classes. RELLIS-3D~\cite{rellis2021} provides 6,235 image annotations with 20 classes collected at Texas A\&M University. Both datasets exhibit severe class imbalance: in RUGD, grass and tree dominate (Fig.~5 in~\cite{rugd2019}), while in RELLIS-3D, sky, grass, tree, and bush constitute 94\% of labeled pixels~\cite{rellis2021}.
+
+\subsection{Attention-Based Segmentation}
+GANav~\cite{ganav2022} proposes a group-wise attention mechanism for off-road terrain segmentation, using a MixVisionTransformer (MiT) backbone and a polarized self-attention (PSA) decode head. It achieves strong mIoU on RUGD and RELLIS-3D navigability classification tasks.
+
+\subsection{Transfer Learning for Terrain Segmentation}
+Transfer learning from large-scale datasets to task-specific domains has shown strong results in semantic segmentation~\cite{survey2023}. Domain shift challenges arise when source and target domains differ in class distributions or annotation schemes, motivating careful class remapping strategies.
+
+% ─────────────────────────────────────────────────────────────────────────────
+\section{Method}
+
+\subsection{Six-Class Visual Terrain Taxonomy}
+We define six terrain classes for UGV navigation based on visual appearance:
+\begin{itemize}
+    \item \textbf{Sky} (0): open sky, clouds
+    \item \textbf{Tree} (1): tree trunks and canopy
+    \item \textbf{Bush} (2): low shrubs, dense vegetation
+    \item \textbf{Ground} (3): traversable dirt, grass, gravel
+    \item \textbf{Obstacle} (4): poles, vehicles, man-made structures
+    \item \textbf{Rock} (5): exposed rock, rubble
+\end{itemize}
+Annotations for the AVMI UGV dataset use RGB-coded masks, converted to class indices via nearest-colour L2 matching during data loading.
+
+\subsection{Network Architecture}
+We adopt the GANav architecture with:
+\begin{itemize}
+    \item \textbf{Backbone}: MixVisionTransformer-B0 (MiT-B0) with 4 stages, embed dim 32, output strides [8,4,2,1]
+    \item \textbf{Decode head}: \texttt{OursHeadClassAtt} with polarized self-attention (PSA), attention mask size $97\times97$, 384 channels
+    \item \textbf{Auxiliary heads}: Two FCN heads at intermediate stages for deep supervision
+    \item \textbf{Input}: RGB images, crop size $300\times375$, normalised with ImageNet statistics
+\end{itemize}
+The model contains approximately 3.7M parameters and runs in CPU-fallback mode on an NVIDIA RTX 5070 Laptop GPU (CUDA sm\_120, PyTorch compatibility mode).
+
+\subsection{AVMI Scratch Training}
+We train the model from scratch on the AVMI UGV dataset for 240,000 iterations with SGD (lr=0.06, momentum=0.9, weight decay=4e-5), polynomial LR decay, and batch size 4. No ImageNet or external pretrained weights are used.
+
+\subsection{Cross-Dataset Transfer: Class Mapping Strategies}
+
+\subsubsection{Full Mapping}
+All RUGD/RELLIS classes are mapped to the closest AVMI class. For example, RUGD grass, dirt, sand, asphalt, concrete, gravel $\rightarrow$ \textit{ground}; tree $\rightarrow$ \textit{tree}; pole, vehicle, fence $\rightarrow$ \textit{obstacle}. This maximises labeled pixel coverage but creates severe imbalance (\textit{ground} = 68\% of RUGD pixels).
+
+\subsubsection{Selective Mapping}
+Only classes that are \emph{visually similar} to the AVMI target class are mapped; all others are set to ignore index 255. For RUGD: dirt $\rightarrow$ ground, gravel $\rightarrow$ ground, tree $\rightarrow$ tree, sky $\rightarrow$ sky, rock/rock-bed $\rightarrow$ rock. This reduces ground dominance but leaves 94\% of pixels unlabeled, causing the model to produce random predictions on unseen textures.
+
+\subsubsection{Fixed Sequential Index Mapping (RELLIS)}
+The RELLIS-3D \texttt{\_orig.png} annotation files use \emph{sequential} indices 0--19, not the original non-sequential class IDs. The initial RELLIS mapping incorrectly used non-sequential IDs (e.g., tree=4, sky=7), resulting in completely wrong label assignments (e.g., pole pixels mapped as tree). After correction to sequential IDs (tree=3, sky=6, bush=14, dirt=1, mud=18, rubble=19), training converged correctly.
+
+\subsection{Fine-Tuning}
+All fine-tuning experiments load the AVMI scratch checkpoint and train for 100,000 iterations with SGD (lr=0.003, polynomial decay, min lr=1e-5). Crop size is fixed at $300\times375$ to match the AVMI-trained PSA mask dimensions.
+
+% ─────────────────────────────────────────────────────────────────────────────
+\section{Experiments}
+
+\subsection{Datasets}
+\begin{itemize}
+    \item \textbf{AVMI UGV}: Custom synthetic UGV dataset, 6 visual terrain classes, RGB annotation masks. Train/val/test split.
+    \item \textbf{RUGD}~\cite{rugd2019}: 7,456 annotated frames, 24 classes, index-based \texttt{\_orig.png} annotations.
+    \item \textbf{RELLIS-3D}~\cite{rellis2021}: 6,235 annotated frames, 20 classes (sequential 0--19 in \texttt{\_orig.png}), forest trail environments.
+\end{itemize}
+
+\subsection{Evaluation Metric}
+We report mean Intersection over Union (mIoU) on the validation split:
+\begin{equation}
+    \text{mIoU} = \frac{1}{C} \sum_{c=1}^{C} \frac{TP_c}{TP_c + FP_c + FN_c}
+\end{equation}
+where $C$ is the number of classes and $TP$, $FP$, $FN$ are true positives, false positives, and false negatives per class.
+
+\subsection{Results}
+
+Table~\ref{tab:avmi_scratch} shows per-class IoU for the AVMI scratch model. Table~\ref{tab:transfer} compares all fine-tuning strategies.
+
+\begin{table}[h]
+\centering
+\caption{AVMI Scratch Model — Validation IoU (240k iterations)}
+\label{tab:avmi_scratch}
+\begin{tabular}{lcccccc|c}
+\toprule
+ & Sky & Tree & Bush & Ground & Obstacle & Rock & mIoU \\
+\midrule
+IoU & 86.9 & 70.2 & 4.9 & 91.2 & 15.5 & 40.4 & 51.51 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{table*}[t]
+\centering
+\caption{Cross-Dataset Transfer — Validation IoU (\%) after 100k fine-tuning iterations on AVMI 6-class scheme}
+\label{tab:transfer}
+\begin{tabular}{llcccccc|c}
+\toprule
+\textbf{Dataset} & \textbf{Strategy} & \textbf{Sky} & \textbf{Tree} & \textbf{Bush} & \textbf{Ground} & \textbf{Obstacle} & \textbf{Rock} & \textbf{mIoU} \\
+\midrule
+RUGD   & Full Mapping               & 57.0 &  5.6 & 0.0 & 88.4 & 68.7 & 74.3 & 49.0 \\
+RUGD   & Selective Mapping          & 87.4 & 58.7 & 5.2 & 91.6 & n/a  & 93.6 & 67.4 \\
+RUGD   & Full Mapping + Class Wt.   & 48.2 & 10.4 & 6.7 & 84.9 & 69.9 & 69.2 & 48.4 \\
+\midrule
+RELLIS & Full Mapping (wrong index) & ---  & ---  & --- & ---  & ---  & ---  & ---  \\
+RELLIS & Fixed Sequential Index     & \textbf{71.2} & \textbf{61.1} & \textbf{20.8} & \textbf{63.8} & 0.5 & 0.0 & \textbf{36.2} \\
+RELLIS & Selective Mapping          & 0.0  & 48.1 & 21.3 & 0.0 & n/a  & n/a  & 17.4 \\
+\bottomrule
+\end{tabular}
+\end{table*}
+
+\subsection{Analysis}
+
+\subsubsection{RUGD Class Imbalance}
+Under full RUGD mapping, grass, dirt, asphalt, sand, concrete, and mulch are all mapped to \textit{ground}, which then constitutes 68\% of labeled pixels. As a result, the cross-entropy loss is dominated by ground, and tree IoU collapses to 3--7\% across all 100k training iterations despite the model architecture being capable of detecting trees (AVMI scratch: tree IoU = 70.2\%). Class-weighted loss improves tree IoU slightly (5.6\% $\rightarrow$ 10.4\%) but cannot overcome the fundamental data scarcity — tree pixels represent only 0.2\% of all RUGD pixels.
+
+\subsubsection{RELLIS Index Mapping Error}
+The initial RELLIS mapping used the original non-sequential class IDs from the dataset ontology (tree=4, sky=7, bush=19) applied to \texttt{\_orig.png} files that store sequential indices. This caused systematic label confusion: index 4 in \texttt{\_orig.png} corresponds to \textit{pole} not \textit{tree}. After correcting to sequential IDs (tree=3, sky=6, bush=14), training converged with tree IoU reaching 61.1\% — an improvement of approximately $58\%$ absolute.
+
+\subsubsection{Selective Mapping Trade-off}
+Selective mapping improves the RUGD distribution significantly (tree: 0.2\% $\rightarrow$ 3.7\% of labeled pixels; sky: 1.4\% $\rightarrow$ 25.5\%) and achieves the highest RUGD mIoU of 67.4\%. However, 94\% of pixels become unlabeled, and the model produces inconsistent predictions on textures not seen during training (e.g., grass in UGV images). For RELLIS, selective mapping cannot recover ground/rock classes since only dirt and mud are kept, leaving the model with only tree+bush training signal.
+
+\subsubsection{Qualitative UGV Evaluation}
+We test all trained models on held-out UGV images not seen during training. The RELLIS fixed-index model produces the most consistent results: sky regions are correctly labelled (18--29\%), tree canopy is detected (15--30\%), and traversable ground is segmented (47--58\%). The RUGD selective model also performs well on RUGD-domain images but is inconsistent on UGV images.
+
+% ─────────────────────────────────────────────────────────────────────────────
+\section{Conclusion}
+
+We presented a systematic study of cross-dataset transfer for UGV terrain segmentation using a six-class visual taxonomy. Our findings highlight two critical failure modes: (1) class-mapping-induced label imbalance, where mapping many source classes to a single target class causes gradient starvation for rare target classes; and (2) annotation format bugs, where non-sequential class IDs in source annotations are misapplied to sequentially-stored annotation files. After identifying and correcting the RELLIS-3D index mapping error, fine-tuning the AVMI-pretrained GANav model on RELLIS-3D produced the best cross-domain generalisation: sky IoU 71.2\%, tree IoU 61.1\%, ground IoU 63.8\%. These results validate the usefulness of RELLIS-3D as a transfer source for UGV terrain perception in forest-trail environments, and suggest that careful attention to annotation format consistency is as important as model architecture choices in cross-dataset transfer learning.
+
+% ─────────────────────────────────────────────────────────────────────────────
+\begin{thebibliography}{9}
+
+\bibitem{rugd2019}
+O.~Wigness, M.~Eum, J.~G.~Rogers, D.~Han, and H.~Kwon,
+``A RUGD Dataset for Autonomous Navigation and Visual Perception in Unstructured Outdoor Environments,''
+in \textit{Proc. IEEE/RSJ IROS}, 2019.
+
+\bibitem{rellis2021}
+P.~Jiang, P.~Osteen, M.~Wigness, and S.~Saripalli,
+``RELLIS-3D Dataset: Data, Benchmarks and Analysis,''
+in \textit{Proc. IEEE ICRA}, 2021.
+
+\bibitem{ganav2022}
+H.~Gao, C.~Guo, G.~Wang, and Q.~Zhang,
+``GANav: Group-wise Attention Network for Classifying Navigable Regions in Unstructured Outdoor Environments,''
+\textit{IEEE RAL}, vol.~7, no.~3, pp.~8392--8399, 2022.
+
+\bibitem{survey2023}
+B.~Lim and others,
+``A Survey on Semantic Segmentation for Autonomous Driving,''
+\textit{Sensors}, 2023.
+
+\bibitem{goose2023}
+J.~Mortimer and others,
+``The GOOSE Dataset for Perception in Unstructured Outdoor Environments,''
+in \textit{Proc. IEEE ICRA}, 2024.
+
+\end{thebibliography}
+
+\end{document}

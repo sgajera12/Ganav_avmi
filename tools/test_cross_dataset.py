@@ -30,18 +30,18 @@ model = init_segmentor(config_file, checkpoint_file, device=device)
 model = revert_sync_batchnorm(model)
 print("Model ready!\n")
 
-# ── AVMI class colours (RGB) ──────────────────────────────────────────────────
-CLASS_NAMES = ['sky', 'tree', 'bush', 'ground', 'trunk', 'rock']
+# ── AVMI class colours (RGB) 
+CLASS_NAMES = ['sky', 'tree', 'bush', 'ground', 'obstacle', 'rock']
 COLORS = np.array([
     [24,  102, 178],  # 0: sky    - blue
     [18,  182,  37],  # 1: tree   - green
     [239, 255,  15],  # 2: bush   - yellow
     [92,   19,   6],  # 3: ground - dark brown
-    [255,  63, 250],  # 4: trunk  - pink/magenta
+    [255,  63, 250],  # 4: obstacle  - pink/magenta
     [255,   0,   0],  # 5: rock   - red
 ], dtype=np.uint8)
 
-# ── Dataset image folders ─────────────────────────────────────────────────────
+# ── Dataset image folders ───
 DATASETS = {
     'rugd':   'data/rugd/RUGD_frames-with-annotations/**/*.png',
     'rellis': 'data/rellis/image/**/*.jpg',
@@ -124,7 +124,7 @@ def make_canvas(img_path, seg_map):
     return canvas, stats
 
 
-# ── Run across datasets ───────────────────────────────────────────────────────
+# ── Run across datasets ─────
 for dataset_name, img_glob in DATASETS.items():
     all_imgs = sorted(glob.glob(img_glob, recursive=True))
     if not all_imgs:

@@ -54,12 +54,16 @@ def intersect_and_union(pred_label,
 
     if isinstance(pred_label, str):
         pred_label = torch.from_numpy(np.load(pred_label))
+    elif isinstance(pred_label, torch.Tensor):
+        pred_label = pred_label.cpu()
     else:
-        pred_label = torch.from_numpy((pred_label))
+        pred_label = torch.from_numpy(pred_label)
 
     if isinstance(label, str):
         label = torch.from_numpy(
             mmcv.imread(label, flag='unchanged', backend='pillow'))
+    elif isinstance(label, torch.Tensor):
+        label = label.cpu()
     else:
         label = torch.from_numpy(label)
 
@@ -127,7 +131,6 @@ def total_intersect_and_union(results,
         total_area_label += area_label
     return total_area_intersect, total_area_union, total_area_pred_label, \
         total_area_label
-
 
 def mean_iou(results,
              gt_seg_maps,

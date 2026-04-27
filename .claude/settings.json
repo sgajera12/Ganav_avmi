@@ -16,7 +16,9 @@
       "Bash(find /home/pinaka/offroad_slam -name *.py -o -name *.cpp -o -name *.hpp)",
       "Read(//tmp/**)",
       "Bash(ls tools/generate_*.py tools/compare_*.py tools/test_*.py)",
-      "Bash(ls -lh results/ugv_comparison_grids/rugd_park*)"
+      "Bash(ls -lh results/ugv_comparison_grids/rugd_park*)",
+      "Bash(/home/pinaka/miniconda3/envs/segformer/bin/python -c \"import mmcv; print\\(''mmcv:'', mmcv.__version__\\)\")",
+      "Bash(/home/pinaka/miniconda3/envs/segformer/bin/python -c \"import mmcv; print\\(dir\\(mmcv\\)\\)\")"
     ]
   }
 }

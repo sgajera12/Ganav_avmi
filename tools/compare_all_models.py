@@ -81,7 +81,7 @@ all_imgs = sorted(glob.glob(os.path.join(UGV_DIR, '**', '*.png'), recursive=True
 chosen = random.sample(all_imgs, min(N_IMAGES, len(all_imgs)))
 print(f'Using {len(chosen)} UGV images.')
 
-# ── helpers ──────────────────────────────────────────────────────────────
+
 def seg_to_colour(seg):
     h, w = seg.shape
     colour = np.zeros((h, w, 3), dtype=np.uint8)

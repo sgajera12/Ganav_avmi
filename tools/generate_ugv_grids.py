@@ -17,7 +17,7 @@ from mmcv.cnn.utils import revert_sync_batchnorm
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 torch.backends.cudnn.enabled = False
 
-# ── Settings ───────────────────────────────────────────────────────────────────
+# ── Settings ──────
 ROWS, COLS   = 3, 6          # grid dimensions (18 images total)
 THUMB_W      = 320           # width of each cell in the grid
 THUMB_H      = 240           # height of each cell
@@ -39,20 +39,20 @@ PALETTE = np.array([
 
 os.makedirs(OUT_DIR, exist_ok=True)
 
-# ── Pick 18 evenly-spaced images ───────────────────────────────────────────────
+# ── Pick 18 evenly-spaced images 
 all_imgs = sorted(glob.glob(UGV_GLOB))
 n_total  = ROWS * COLS   # 18
 step     = max(1, len(all_imgs) // n_total)
 chosen   = [all_imgs[i * step] for i in range(n_total)]
 print(f'Using {len(chosen)} images (step={step} from {len(all_imgs)} total)')
 
-# ── Load AVMI scratch model ────────────────────────────────────────────────────
+# ── Load AVMI scratch model ─────
 print('Loading AVMI scratch model …')
 model = init_segmentor(MODEL_CFG, MODEL_CKPT, device='cuda:0')
 model = revert_sync_batchnorm(model)
 print('Ready.\n')
 
-# ── Run inference on all chosen images ────────────────────────────────────────
+# ── Run inference on all chosen images 
 orig_cells = []
 seg_cells  = []
 
@@ -84,7 +84,7 @@ for i, img_path in enumerate(chosen):
     seg_cells.append(cv2.resize(seg_bgr, (THUMB_W, THUMB_H),
                                 interpolation=cv2.INTER_NEAREST))
 
-# ── Build grids ────────────────────────────────────────────────────────────────
+# ── Build grids ───
 GAP   = 6     # pixels between cells
 BG    = 30    # background colour (dark grey)
 

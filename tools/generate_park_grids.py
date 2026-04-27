@@ -17,7 +17,7 @@ torch.backends.cudnn.enabled = False
 from mmseg.apis import init_segmentor, inference_segmentor
 from mmcv.cnn.utils import revert_sync_batchnorm
 
-# ── Settings ──────────────────────────────────────────────────────────────────
+# ── Settings ──
 MODEL_CFG  = 'work_dirs/ganav_avmi_scratch/ganav_avmi_scratch.py'
 MODEL_CKPT = 'work_dirs/ganav_avmi_scratch/latest.pth'
 OUT_DIR    = 'results/ugv_comparison_grids'
@@ -40,7 +40,7 @@ PALETTE = np.array([
 
 BG = np.array([25, 25, 25], dtype=np.uint8)  # background/border colour
 
-# ── Load model ────────────────────────────────────────────────────────────────
+# ── Load model 
 print('Loading model...')
 cfg   = mmcv.Config.fromfile(MODEL_CFG)
 model = init_segmentor(cfg, MODEL_CKPT, device='cuda:0')
@@ -48,7 +48,7 @@ model = revert_sync_batchnorm(model)
 model.eval()
 print('Model ready.\n')
 
-# ── Helpers ───────────────────────────────────────────────────────────────────
+# ── Helpers ───
 def segment(img_bgr):
     """Run segmentation with padding-aware rescaling for non-4:3 images."""
     oh, ow = img_bgr.shape[:2]
@@ -85,7 +85,7 @@ def load_sequence(base_dir, frame_range):
     step   = max(1, len(files) // 8)
     return [os.path.join(base_dir, f) for f in files[::step][:8]]
 
-# ── Main ──────────────────────────────────────────────────────────────────────
+# ── Main ──────
 os.makedirs(OUT_DIR, exist_ok=True)
 
 sel_p2 = load_sequence('data/rugd/RUGD_frames-with-annotations/park-2', PARK2_RANGE)
